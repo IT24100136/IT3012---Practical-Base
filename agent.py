@@ -1,184 +1,135 @@
+# agent.py
 import random
 from collections import deque
-import heapq
-import math
+
+class GreedyGridAgent:
+    """A simple agent that tries to move around systematically to clear the grid."""
+
+    def __init__(self):
+        self.actions_pool = ['Up', 'Down', 'Left', 'Right']
+
+    def sense_and_act(self, percept: dict) -> str:
+        return random.choice(self.actions_pool)
+
+
+class SimpleReflexAgent:
+    """A purely reactive agent using Condition-Action rules without memory."""
+    
+    def sense_and_act(self, percept: dict) -> str:
+        # Condition-Action Rules responding only to immediate percepts
+        if percept.get('food_here'):
+            return 'Stay' # Consume food
+            
+        if percept.get('wall_ahead'):
+            # Reflexively turn when a wall is encountered
+            return 'Left' 
+            
+        # Default action
+        return 'Up'
+
+
+class ModelBasedAgent:
+    """An agent that maintains internal state to handle partial observability and escape loops."""
+    
+    def __init__(self):
+        # Internal memory state to track if we are stuck in a loop
+        self.last_percept_wall = False
+        self.escape_actions = ['Left', 'Right', 'Down', 'Up']
+        self.stuck_attempts = 0
+
+    def sense_and_act(self, percept: dict) -> str:
+        # 1. Update State & 2. Condition-Action rules using Memory
+        if percept.get('food_here'):
+            return 'Stay'
+            
+        if percept.get('wall_ahead'):
+            # If we were already facing a wall last turn, we are stuck in a loop
+            if self.last_percept_wall:
+                self.stuck_attempts += 1
+            else:
+                self.stuck_attempts = 0
+                
+            self.last_percept_wall = True
+            
+            # Use internal memory (stuck_attempts) to pick a different action and escape
+            return self.escape_actions[self.stuck_attempts % len(self.escape_actions)]
+            
+        # Reset memory state if path is clear
+        self.last_percept_wall = False
+        return 'Up'
 
 
 class SearchAgent:
-    """Goal-Based Planning Agent: Uses BFS, DFS, or UCS to find paths to food."""
-
+    """Problem-Solving Agent for Practical 3 that uses Breadth-First Search (BFS)."""
+    
     def __init__(self):
         self.plan = []
         self.active_algo = 'BFS'
 
-    def bfs_search(self, start, goal, grid_size, walls):
-        """Breadth-First Search: explores shallowest nodes first using FIFO queue."""
-        width, height = grid_size
-        queue = deque([(start, [start])])
-        reached = {start}
-
-        while queue:
-            current, path = queue.popleft()
-
-            if current == goal:
-                return self._path_to_actions(path)
-
-            # Expand neighbors (Up, Down, Left, Right)
-            for action, (dx, dy) in [('Up', (0, 1)), ('Down', (0, -1)), ('Left', (-1, 0)), ('Right', (1, 0))]:
-                neighbor = (current[0] + dx, current[1] + dy)
-
-                # Check if valid position
-                if (0 <= neighbor[0] < width and 0 <= neighbor[1] < height and
-                    neighbor not in walls and neighbor not in reached):
-                    reached.add(neighbor)
-                    queue.append((neighbor, path + [neighbor]))
-
-        return []  # No path found
-
-    def dfs_search(self, start, goal, grid_size, walls):
-        """Depth-First Search: explores deepest nodes first using LIFO stack."""
-        width, height = grid_size
-        stack = [(start, [start])]
-        reached = {start}
-
-        while stack:
-            current, path = stack.pop()
-
-            if current == goal:
-                return self._path_to_actions(path)
-
-            # Expand neighbors (Up, Down, Left, Right)
-            for action, (dx, dy) in [('Up', (0, 1)), ('Down', (0, -1)), ('Left', (-1, 0)), ('Right', (1, 0))]:
-                neighbor = (current[0] + dx, current[1] + dy)
-
-                # Check if valid position
-                if (0 <= neighbor[0] < width and 0 <= neighbor[1] < height and
-                    neighbor not in walls and neighbor not in reached):
-                    reached.add(neighbor)
-                    stack.append((neighbor, path + [neighbor]))
-
-        return []  # No path found
-
-    def ucs_search(self, start, goal, grid_size, walls):
-        """Uniform-Cost Search: explores by total path cost using priority queue."""
-        width, height = grid_size
-        # Priority queue: (cost, current_pos, path)
-        heap = [(0, start, [start])]
-        reached = {start: 0}
-
-        while heap:
-            cost, current, path = heapq.heappop(heap)
-
-            if current == goal:
-                return self._path_to_actions(path)
-
-            # Only process if this is the best path to current node
-            if reached.get(current, float('inf')) < cost:
-                continue
-
-            # Expand neighbors (Up, Down, Left, Right)
-            for action, (dx, dy) in [('Up', (0, 1)), ('Down', (0, -1)), ('Left', (-1, 0)), ('Right', (1, 0))]:
-                neighbor = (current[0] + dx, current[1] + dy)
-
-                # Check if valid position
-                if 0 <= neighbor[0] < width and 0 <= neighbor[1] < height and neighbor not in walls:
-                    new_cost = cost + 1
-                    if neighbor not in reached or reached[neighbor] > new_cost:
-                        reached[neighbor] = new_cost
-                        heapq.heappush(heap, (new_cost, neighbor, path + [neighbor]))
-
-        return []  # No path found
-
-    def _path_to_actions(self, path):
-        """Convert a path of coordinates to a list of directional actions."""
-        actions = []
-        for i in range(1, len(path)):
-            prev = path[i - 1]
-            curr = path[i]
-            dx = curr[0] - prev[0]
-            dy = curr[1] - prev[1]
-
-            if dy > 0:
-                actions.append('Up')
-            elif dy < 0:
-                actions.append('Down')
-            elif dx < 0:
-                actions.append('Left')
-            elif dx > 0:
-                actions.append('Right')
-
-        return actions
-
-    def _find_closest_food(self, agent_pos, food_positions):
-        """Find the closest food pellet using Manhattan distance."""
-        if not food_positions:
-            return None
-
-        closest_food = min(food_positions, key=lambda f: abs(f[0] - agent_pos[0]) + abs(f[1] - agent_pos[1]))
-        return closest_food
-
-    def sense_and_act(self, percept: dict) -> str:
-        """Sense percept and execute planned actions or generate new plan."""
-        if not self.plan:
-            # Plan is empty, generate a new one
-            agent_pos = tuple(percept.get('agent_pos', [0, 0]))
-            grid_size = percept.get('grid_size', (10, 10))
-            walls = set(percept.get('walls', []))
-            all_food = list(percept.get('all_food', []))
-
-            if all_food:
-                goal = self._find_closest_food(agent_pos, all_food)
-
-                if goal:
-                    # Execute the active search algorithm
-                    if self.active_algo == 'BFS':
-                        self.plan = self.bfs_search(agent_pos, goal, grid_size, walls)
-                    elif self.active_algo == 'DFS':
-                        self.plan = self.dfs_search(agent_pos, goal, grid_size, walls)
-                    elif self.active_algo == 'UCS':
-                        self.plan = self.ucs_search(agent_pos, goal, grid_size, walls)
-
-        # Execute the next action from the plan
-        if self.plan:
-            return self.plan.pop(0)
-        else:
-            # No plan available, default to forward movement
-            return 'move_forward'
-
-
-class SimpleReflexAgent:
-    """Simple reflex agent: reacts only to the current percept."""
-
     def sense_and_act(self, percept: dict) -> str:
         if percept.get('food_here'):
             return 'suck'
-        if percept.get('wall_ahead'):
-            return 'Left'
-        return 'move_forward'
+            
+        if not self.plan:
+            start_pos = percept['agent_pos']
+            walls = percept['walls']
+            grid_size = percept['grid_size']
+            all_food = percept['all_food']
+            
+            if not all_food:
+                return 'Stay'
+                
+            best_path = None
+            
+            for goal_pos in all_food:
+                if getattr(self, 'active_algo', 'BFS') == 'DFS' and hasattr(self, 'dfs_search'):
+                    path = self.dfs_search(start_pos, goal_pos, walls, grid_size)
+                elif getattr(self, 'active_algo', 'BFS') == 'UCS' and hasattr(self, 'ucs_search'):
+                    path = self.ucs_search(start_pos, goal_pos, walls, grid_size)
+                else:
+                    path = self.bfs_search(start_pos, goal_pos, walls, grid_size)
+                    
+                if path:
+                    if best_path is None or len(path) < len(best_path):
+                        best_path = path
+                        
+            if best_path:
+                self.plan = best_path.copy()
+            else:
+                return 'Stay'
+                
+        return self.plan.pop(0)
 
-
-class ModelBasedAgent:
-    """Model-based agent: stores a small internal memory to avoid repeating the same response."""
-
-    def __init__(self):
-        self.visited_states = set()
-        self.last_action = None
-        self._turn_preference = 'Left'
-
-    def sense_and_act(self, percept: dict) -> str:
-        state = (bool(percept.get('wall_ahead')), bool(percept.get('food_here')))
-        repeated_state = state in self.visited_states
-        self.visited_states.add(state)
-
-        if percept.get('food_here'):
-            action = 'suck'
-        elif percept.get('wall_ahead'):
-            action = 'Right' if repeated_state or self._turn_preference == 'Right' else 'Left'
-            self._turn_preference = 'Right' if self._turn_preference == 'Left' else 'Left'
-        else:
-            action = 'move_forward'
-
-        self.last_action = action
-        return action
-
-
+    def bfs_search(self, start_pos, goal_pos, walls, grid_size):
+        width, height = grid_size
+        walls_set = set(walls)
+        
+        # A queue to store tuples of (current_position, path_taken)
+        queue = deque([(start_pos, [])])
+        visited = set([start_pos])
+        
+        while queue:
+            (curr_x, curr_y), path = queue.popleft()
+            
+            # If we reached the goal, return the path of actions we took to get here
+            if (curr_x, curr_y) == goal_pos:
+                return path
+            
+            # Define possible movements and their coordinate changes
+            moves = [
+                ('Up', (curr_x, curr_y + 1)),
+                ('Down', (curr_x, curr_y - 1)),
+                ('Left', (curr_x - 1, curr_y)),
+                ('Right', (curr_x + 1, curr_y))
+            ]
+            
+            for action, (next_x, next_y) in moves:
+                # Check if the next move is inside the grid boundaries
+                if 0 <= next_x < width and 0 <= next_y < height:
+                    # Check if the next move avoids walls and hasn't been visited yet
+                    if (next_x, next_y) not in walls_set and (next_x, next_y) not in visited:
+                        visited.add((next_x, next_y))
+                        queue.append(((next_x, next_y), path + [action]))
+                        
+        # Return an empty list if the goal is completely blocked off
+        return []
