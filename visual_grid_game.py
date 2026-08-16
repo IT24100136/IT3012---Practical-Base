@@ -1,7 +1,7 @@
 import random
 import tkinter as tk
 
-from agent import ModelBasedAgent, SimpleReflexAgent
+from agent import ModelBasedAgent, SimpleReflexAgent, SearchAgent
 
 
 class VisualGridHuntGame:
@@ -72,6 +72,10 @@ class VisualGridHuntGame:
         return {
             'wall_ahead': wall_ahead,
             'food_here': tuple(self.agent_pos) in self.food_positions,
+            'agent_pos': tuple(self.agent_pos),
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions),
         }
 
     def execute_action(self, action: str):
@@ -191,6 +195,37 @@ class GridGameGUI:
         )
         self.btn_model.pack(pady=4)
 
+        # Search Agent buttons
+        self.btn_bfs = tk.Button(
+            root,
+            text="Run Search Agent (BFS)",
+            command=lambda: self.run_loop_search(SearchAgent(), 'BFS'),
+            font=("Arial", 12),
+            bg="#d97706",
+            fg="white",
+        )
+        self.btn_bfs.pack(pady=4)
+
+        self.btn_dfs = tk.Button(
+            root,
+            text="Run Search Agent (DFS)",
+            command=lambda: self.run_loop_search(SearchAgent(), 'DFS'),
+            font=("Arial", 12),
+            bg="#dc2626",
+            fg="white",
+        )
+        self.btn_dfs.pack(pady=4)
+
+        self.btn_ucs = tk.Button(
+            root,
+            text="Run Search Agent (UCS)",
+            command=lambda: self.run_loop_search(SearchAgent(), 'UCS'),
+            font=("Arial", 12),
+            bg="#7c3aed",
+            fg="white",
+        )
+        self.btn_ucs.pack(pady=4)
+
         self.draw_grid()
 
     def reset_environment(self):
@@ -301,6 +336,9 @@ class GridGameGUI:
         self.reset_environment()
         self.btn_simple.config(state="disabled")
         self.btn_model.config(state="disabled")
+        self.btn_bfs.config(state="disabled")
+        self.btn_dfs.config(state="disabled")
+        self.btn_ucs.config(state="disabled")
 
         def step():
             if not self.env.is_done():
@@ -320,8 +358,16 @@ class GridGameGUI:
                 self.label.config(text=end_text)
                 self.btn_simple.config(state="normal")
                 self.btn_model.config(state="normal")
+                self.btn_bfs.config(state="normal")
+                self.btn_dfs.config(state="normal")
+                self.btn_ucs.config(state="normal")
 
         step()
+
+    def run_loop_search(self, agent, algo):
+        """Run loop for SearchAgent with specified algorithm."""
+        agent.active_algo = algo
+        self.run_loop(agent)
 
 
 if __name__ == "__main__":
