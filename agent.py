@@ -3,6 +3,7 @@ import random
 import math
 import heapq
 from collections import deque
+from logic_engine import KnowledgeBase
 
 class GreedyGridAgent:
     """A simple agent that tries to move around systematically to clear the grid."""
@@ -62,11 +63,25 @@ class ModelBasedAgent:
 
 
 class SearchAgent:
-    """Problem-Solving Agent for Practical 3 that uses Breadth-First Search (BFS), DFS, UCS, and A* Search."""
+    """Problem-Solving Agent for Practical 3 that uses Breadth-First Search (BFS), DFS, UCS, and A* Search.
+    
+    Part 3: Practical 04 - Integrates Knowledge Base and Forward Chaining Inference
+    to validate tile feasibility before moving.
+    """
     
     def __init__(self):
         self.plan = []
         self.active_algo = 'BFS'
+        
+        # Part 3.1: Instantiate Knowledge Base
+        self.kb = KnowledgeBase()
+        
+        # Define safety rules (Horn Clauses)
+        # Rule 1: TargetVisible ∧ HasDust ⇒ SafeToEngage
+        self.kb.tell_rule(['TargetVisible', 'HasDust'], 'SafeToEngage')
+        
+        # Rule 2: SafeToEngage ∧ BloodseekerMissing ⇒ Retreat
+        self.kb.tell_rule(['SafeToEngage', 'BloodseekerMissing'], 'Retreat')
 
     def sense_and_act(self, percept: dict) -> str:
         if percept.get('food_here'):
@@ -156,9 +171,41 @@ class SearchAgent:
                 if 0 <= next_x < width and 0 <= next_y < height:
                     # Check for walls and already visited states
                     if (next_x, next_y) not in walls_set and (next_x, next_y) not in reached_states:
+                        
+                        # Part 3.2: Feasibility Check using Knowledge Base
+                        # =====================================================
+                        # Before expanding this neighbor, validate it is feasible
+                        next_pos = (next_x, next_y)
+                        
+                        # 1. Clear KB facts for fresh inference on this tile
+                        self.kb.clear_facts()
+                        
+                        # 2. Feed current percepts for this specific tile into the KB
+                        # Simulate tile-specific percepts:
+                        # - Assume TargetVisible if this is a goal position
+                        if next_pos == goal_pos:
+                            self.kb.tell_fact('TargetVisible')
+                            self.kb.tell_fact('HasDust')
+                        
+                        # - Assume BloodseekerMissing if near obstacles (example logic)
+                        # For demonstration: if neighbor to a wall, consider Bloodseeker missing
+                        if any((next_x + dx, next_y + dy) in walls_set 
+                               for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]):
+                            self.kb.tell_fact('BloodseekerMissing')
+                        
+                        # 3. Run forward chaining inference
+                        self.kb.forward_chain()
+                        
+                        # 4. Check feasibility: If 'Retreat' was deduced, tile is infeasible
+                        if 'Retreat' in self.kb.facts:
+                            # Infeasible tile - skip it even if physically reachable
+                            continue
+                        
+                        # =====================================================
+                        # Feasible tile - proceed with normal A* expansion
+                        
                         # Calculate costs
                         g_new = g_cost + 1  # Cost of moving one step
-                        next_pos = (next_x, next_y)
                         
                         # Select heuristic
                         if heuristic_type == 'euclidean':
