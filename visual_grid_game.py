@@ -226,6 +226,16 @@ class GridGameGUI:
         )
         self.btn_ucs.pack(pady=4)
 
+        self.btn_astar = tk.Button(
+            root,
+            text="Run Search Agent (A*)",
+            command=lambda: self.run_loop_search(SearchAgent(), 'AStar'),
+            font=("Arial", 12),
+            bg="#0891b2",
+            fg="white",
+        )
+        self.btn_astar.pack(pady=4)
+
         self.draw_grid()
 
     def reset_environment(self):
@@ -339,6 +349,7 @@ class GridGameGUI:
         self.btn_bfs.config(state="disabled")
         self.btn_dfs.config(state="disabled")
         self.btn_ucs.config(state="disabled")
+        self.btn_astar.config(state="disabled")
 
         def step():
             if not self.env.is_done():
@@ -361,6 +372,7 @@ class GridGameGUI:
                 self.btn_bfs.config(state="normal")
                 self.btn_dfs.config(state="normal")
                 self.btn_ucs.config(state="normal")
+                self.btn_astar.config(state="normal")
 
         step()
 

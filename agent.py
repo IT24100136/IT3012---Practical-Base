@@ -1,5 +1,7 @@
 # agent.py
 import random
+import math
+import heapq
 from collections import deque
 
 class GreedyGridAgent:
@@ -60,7 +62,7 @@ class ModelBasedAgent:
 
 
 class SearchAgent:
-    """Problem-Solving Agent for Practical 3 that uses Breadth-First Search (BFS)."""
+    """Problem-Solving Agent for Practical 3 that uses Breadth-First Search (BFS), DFS, UCS, and A* Search."""
     
     def __init__(self):
         self.plan = []
@@ -86,6 +88,8 @@ class SearchAgent:
                     path = self.dfs_search(start_pos, goal_pos, walls, grid_size)
                 elif getattr(self, 'active_algo', 'BFS') == 'UCS' and hasattr(self, 'ucs_search'):
                     path = self.ucs_search(start_pos, goal_pos, walls, grid_size)
+                elif getattr(self, 'active_algo', 'BFS') == 'AStar' and hasattr(self, 'astar_search'):
+                    path = self.astar_search(start_pos, goal_pos, walls, grid_size)
                 else:
                     path = self.bfs_search(start_pos, goal_pos, walls, grid_size)
                     
@@ -99,6 +103,76 @@ class SearchAgent:
                 return 'Stay'
                 
         return self.plan.pop(0)
+
+    def manhattan_distance(self, pos, goal):
+        """Calculate Manhattan distance between pos and goal.
+        Formula: h(n) = |x_1 - x_2| + |y_1 - y_2|
+        """
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+    
+    def euclidean_distance(self, pos, goal):
+        """Calculate Euclidean distance between pos and goal.
+        Formula: h(n) = sqrt((x_1 - x_2)^2 + (y_1 - y_2)^2)
+        """
+        return math.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
+    
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+        """A* Search algorithm combining g(n) path cost and h(n) heuristic cost.
+        f(n) = g(n) + h(n)
+        """
+        width, height = grid_size
+        walls_set = set(walls)
+        
+        # Priority queue: (f_cost, g_cost, current_pos, path_taken)
+        # Using f_cost and g_cost as tiebreakers for consistent ordering
+        priority_queue = []
+        heapq.heappush(priority_queue, (0, 0, start_pos, []))
+        
+        reached_states = set()
+        
+        while priority_queue:
+            f_cost, g_cost, current_pos, path_taken = heapq.heappop(priority_queue)
+            
+            # If we reached the goal, return the path
+            if current_pos == goal_pos:
+                return path_taken
+            
+            # Skip if already reached this state
+            if current_pos in reached_states:
+                continue
+                
+            reached_states.add(current_pos)
+            
+            # Expand neighbors (Up, Down, Left, Right)
+            moves = [
+                ('Up', (current_pos[0], current_pos[1] + 1)),
+                ('Down', (current_pos[0], current_pos[1] - 1)),
+                ('Left', (current_pos[0] - 1, current_pos[1])),
+                ('Right', (current_pos[0] + 1, current_pos[1]))
+            ]
+            
+            for action, (next_x, next_y) in moves:
+                # Check boundaries
+                if 0 <= next_x < width and 0 <= next_y < height:
+                    # Check for walls and already visited states
+                    if (next_x, next_y) not in walls_set and (next_x, next_y) not in reached_states:
+                        # Calculate costs
+                        g_new = g_cost + 1  # Cost of moving one step
+                        next_pos = (next_x, next_y)
+                        
+                        # Select heuristic
+                        if heuristic_type == 'euclidean':
+                            h_new = self.euclidean_distance(next_pos, goal_pos)
+                        else:  # default to manhattan
+                            h_new = self.manhattan_distance(next_pos, goal_pos)
+                        
+                        f_new = g_new + h_new
+                        
+                        # Add to priority queue
+                        heapq.heappush(priority_queue, (f_new, g_new, next_pos, path_taken + [action]))
+        
+        # Return empty list if goal is unreachable
+        return []
 
     def bfs_search(self, start_pos, goal_pos, walls, grid_size):
         width, height = grid_size
